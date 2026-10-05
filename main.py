@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from credential_store import load_saved_pin
 from json_signing import build_payload, load_and_validate, make_signed_json
 from pkcs11_signer import PKCS11Signer, TokenError
 
@@ -39,11 +40,21 @@ def setup_logging(log_dir: Path) -> None:
 
 
 def get_pin(cfg: dict) -> str:
+    saved = load_saved_pin()
+    if saved:
+        logging.info("Using saved DSC PIN from Windows Credential Manager.")
+        return saved
+
     env_name = cfg["pkcs11"].get("pin_env_var", "DSC_TOKEN_PIN")
     pin = os.environ.get(env_name, "")
     if pin:
+        logging.info("Using DSC PIN from environment variable %s.", env_name)
         return pin
-    return getpass.getpass(f"Enter DSC token PIN (not stored; or set {env_name}): ")
+
+    return getpass.getpass(
+        "Enter DSC token PIN (not saved automatically). "
+        "Run setup_once.bat to save it securely for future runs: "
+    )
 
 
 def unique_target(folder: Path, name: str) -> Path:
@@ -123,24 +134,13 @@ def build_signer(cfg: dict, pin: str) -> PKCS11Signer:
     identity = signer.open(pin)
     parsed = identity.certificate
     subject = parsed.subject.rfc4514_string()
-    logging.info("TOKEN CONNECTED | %s | Certificate: %s | Subject: %s", identity.token_label, identity.certificate_label, subject)
+    logging.info(
+        "TOKEN CONNECTED | %s | Certificate: %s | Subject: %s",
+        identity.token_label,
+        identity.certificate_label,
+        subject,
+    )
     return signer
-
-
-def list_token_objects(cfg: dict, pin: str) -> None:
-    signer = build_signer(cfg, pin)
-    try:
-        ident = signer.identity
-        cert = ident.certificate
-        print("\nToken ready")
-        print("Token label :", ident.token_label)
-        print("Cert label  :", ident.certificate_label)
-        print("Subject     :", cert.subject.rfc4514_string())
-        print("Issuer      :", cert.issuer.rfc4514_string())
-        print("Valid from  :", cert.not_valid_before_utc)
-        print("Valid until :", cert.not_valid_after_utc)
-    finally:
-        signer.close()
 
 
 def main() -> int:
@@ -172,8 +172,12 @@ def main() -> int:
         poll = float(cfg.get("watcher", {}).get("poll_seconds", 2))
         stable_checks = int(cfg.get("watcher", {}).get("stable_checks", 2))
         logging.info("Watching input folder: %s", folders["input"])
-        logging.info("Algorithm=%s | payload_mode=%s | output_style=%s",
-                     cfg["signature"].get("algorithm"), cfg["signature"].get("payload_mode"), cfg["signature"].get("output_style"))
+        logging.info(
+            "Algorithm=%s | payload_mode=%s | output_style=%s",
+            cfg["signature"].get("algorithm"),
+            cfg["signature"].get("payload_mode"),
+            cfg["signature"].get("output_style"),
+        )
 
         while True:
             files = sorted(p for p in folders["input"].glob("*.json") if p.is_file())
