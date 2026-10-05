@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Runtime data
+input/*
+output/*
+archive/*
+error/*
+logs/*
+!input/.gitkeep
+!output/.gitkeep
+!archive/.gitkeep
+!error/.gitkeep
+!logs/.gitkeep
+
+# Secrets / token-specific configuration
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+*.cer
+*.crt
+*.der
+*.dll
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
