@@ -1,0 +1,29 @@
+{
+  "folders": {
+    "input": "input",
+    "output": "output",
+    "archive": "archive",
+    "error": "error",
+    "logs": "logs"
+  },
+  "watcher": {
+    "poll_seconds": 2,
+    "stable_checks": 2,
+    "process_existing_on_start": true
+  },
+  "pkcs11": {
+    "library_path": "C:\\Windows\\System32\\eps2003csp11.dll",
+    "slot_index": 0,
+    "token_label_contains": "",
+    "certificate_label_contains": "",
+    "private_key_label_contains": "",
+    "pin_env_var": "DSC_TOKEN_PIN"
+  },
+  "signature": {
+    "algorithm": "SHA1_RSA_PKCS",
+    "payload_mode": "raw",
+    "output_style": "preserve",
+    "signer_version": "1.0",
+    "signed_suffix": "_Signed"
+  }
+}
