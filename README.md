@@ -1,60 +1,238 @@
 # DSC JSON Auto Signer
 
-Windows folder-watcher that signs JSON files with an RSA private key held inside a DSC/USB token via PKCS#11.
+Windows tool jo unsigned JSON files ko DSC / HyperPKI USB token se automatically sign karta hai.
 
-## What it does
+## Simple flow
 
-1. Watches `input/` for `.json` files.
-2. Validates the JSON and refuses already-signed files.
-3. Signs the configured byte representation using the private key inside the USB token.
-4. Reads the X.509 certificate from the token and embeds it as Base64.
-5. Adds:
+```text
+input\
+  unsigned.json
+      ↓
+run_signer.bat
+      ↓
+DSC token private key se digital signature
+      ↓
+output\
+  unsigned_Signed.json
+```
+
+Successful original file `archive\` me move hoti hai. Failure hua to file `error\` me chali jaati hai aur reason log me milta hai.
+
+---
+
+# First-time setup — step by step
+
+## Step 1 — HyperPKI driver install karo
+
+DSC token PC me lagao.
+
+Token ke virtual CD drive me agar `HyperPKI_HYP2003_Setup` dikhe to:
+
+1. Setup file par **Right Click**
+2. **Run as administrator**
+3. Driver/middleware install complete karo
+4. Token connected rehne do
+
+Agar Windows bole *Administrator account required*, normal double-click se install mat karo. Administrator rights required hain.
+
+---
+
+## Step 2 — Python install karo
+
+Windows me **Python 3.11 ya Python 3.12** install hona chahiye.
+
+Install karte waqt:
+
+```text
+Add Python to PATH
+```
+
+tick kar dena.
+
+Check karne ke liye CMD me:
+
+```bat
+py --version
+```
+
+---
+
+## Step 3 — GitHub se project clone karo
+
+```bat
+git clone https://github.com/abhay-pal/DSC-JSON-Auto-Signer.git
+cd DSC-JSON-Auto-Signer
+```
+
+Git use nahi karna ho to GitHub se **Code → Download ZIP** karke extract bhi kar sakte ho.
+
+---
+
+## Step 4 — Bas `setup_once.bat` run karo
+
+Project folder me:
+
+```text
+setup_once.bat
+```
+
+double-click karo.
+
+Ye automatically:
+
+- Python virtual environment banayega
+- required packages install karega
+- HyperPKI / PKCS#11 DLL search karega
+- correct DLL choose karne dega
+- `config.json` update karega
+- DSC PIN **ek baar** maangega
+- PIN ko **Windows Credential Manager** me securely save karega
+
+### Important
+
+PIN **config.json me mat likhna**.
+
+Ye line:
 
 ```json
-"digSign": {
-  "startSignature": "...",
-  "startCertificate": "...",
-  "signerVersion": "1.0"
-}
+"pin_env_var": "DSC_TOKEN_PIN"
 ```
 
-6. Saves the result to `output/` as `*_Signed.json`.
-7. Moves successful inputs to `archive/`; failures go to `error/` with a reason file.
-8. Writes logs under `logs/`.
+PIN nahi hai. Ye sirf environment-variable ka naam hai.
 
-## Important compatibility note
+Actual PIN first setup me hidden input ke through enter karna hai.
 
-The provided signed sample was inspected cryptographically. Its RSA PKCS#1 v1.5 `DigestInfo` identifies SHA-1, so the supplied default is `SHA1_RSA_PKCS`.
+---
 
-However, a signed output file alone does **not** reveal with certainty which exact byte representation the original vendor utility hashed before signing. JSON signatures are byte-sensitive. This project therefore supports several `payload_mode` values in `config.json`:
+# PIN baar-baar enter nahi karna padega
 
-- `raw` (default): signs the exact input file bytes.
-- `raw_trimmed`: exact input bytes with trailing whitespace removed.
-- `compact_json`: parses and serializes compact UTF-8 JSON.
-- `sorted_compact_json`: compact JSON with sorted keys.
+`setup_once.bat` ke time PIN ek baar enter karne ke baad app usko Windows Credential Manager me store karta hai.
 
-Start with `raw`. If ICEGATE/vendor validation says the signature is invalid, compare against a matched pair where the **same unsigned file** was signed by the existing official/vendor signer, then select/implement its exact byte canonicalization.
+Uske baad:
 
-## Setup
-
-### 1. Install token middleware
-Install the official driver/middleware for your DSC token (ePass, ProxKey, WatchData, etc.). Keep the token connected.
-
-### 2. Find PKCS#11 DLL
-Run PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\find_pkcs11_dll.ps1
+```text
+token_info.bat
+run_signer.bat
+sign_once.bat
 ```
 
-Typical names vary by token. Do not blindly use the sample path; use the DLL installed by your token vendor.
+automatically saved PIN use karenge.
 
-### 3. Configure
-Edit `config.json`:
+### Security
+
+PIN:
+
+- GitHub par upload nahi hota
+- `config.json` me save nahi hota
+- plain-text file me save nahi hota
+- Windows Credential Manager me local Windows user ke under store hota hai
+
+Agar PIN remove/change karna ho:
+
+```text
+clear_saved_pin.bat
+```
+
+run karo, then `setup_once.bat` dobara run karo.
+
+---
+
+# Step 5 — Token test karo
+
+First setup complete hone ke baad:
+
+```text
+token_info.bat
+```
+
+run karo.
+
+Successful result approximately:
+
+```text
+Token label : ...
+Cert label  : ...
+Subject     : CN=...
+Valid until : ...
+```
+
+Agar ye aa gaya to token successfully connect ho gaya.
+
+---
+
+# Step 6 — Auto signer start karo
+
+```text
+run_signer.bat
+```
+
+double-click karo.
+
+Program `input\` folder ko continuously watch karega.
+
+Unsigned JSON:
+
+```text
+input\F_CUCHE01_....json
+```
+
+me paste karo.
+
+Signed file automatically:
+
+```text
+output\F_CUCHE01_...._Signed.json
+```
+
+me aayegi.
+
+Original successfully processed JSON:
+
+```text
+archive\
+```
+
+me move ho jayegi.
+
+Signing failure:
+
+```text
+error\
+```
+
+me jayegi.
+
+Logs:
+
+```text
+logs\
+```
+
+me milenge.
+
+---
+
+# Ek baar ka batch sign
+
+Continuous watcher nahi chahiye aur sirf currently available files sign karni hain to:
+
+```text
+sign_once.bat
+```
+
+run karo.
+
+---
+
+# config.json
+
+Normally first setup ke baad manually edit karne ki zarurat nahi hai.
+
+Main section:
 
 ```json
 "pkcs11": {
-  "library_path": "C:\\path\\to\\your\\pkcs11.dll",
+  "library_path": "C:\\...\\your-token-pkcs11.dll",
   "slot_index": 0,
   "token_label_contains": "",
   "certificate_label_contains": "",
@@ -63,27 +241,39 @@ Edit `config.json`:
 }
 ```
 
-Leaving label filters empty selects the first matching RSA signing identity, preferring a cert/key pair with the same `CKA_ID`.
+## library_path
 
-### 4. Install Python dependencies
-Double-click `install.bat`.
+HyperPKI/token middleware ka PKCS#11 DLL path.
 
-Recommended: Python 3.11 or 3.12 (64-bit if your token middleware is 64-bit). Python and the PKCS#11 DLL must have compatible architecture.
+`setup_once.bat` isko automatically search/select karne me help karta hai.
 
-### 5. Verify token
-Double-click `token_info.bat` and enter the token PIN. The PIN is not stored by the program.
+## slot_index
 
-### 6. Run
-Double-click `run_signer.bat`.
+Ek hi DSC token connected hai to:
 
-Drop unsigned `.json` files into `input/`. Signed files appear in `output/`.
+```json
+"slot_index": 0
+```
 
-For a one-time batch, use `sign_once.bat`.
+rehne do.
 
-## PIN handling
-By default the app asks for the PIN interactively on startup. It can also read an environment variable named `DSC_TOKEN_PIN`, but storing a token PIN in a persistent environment variable is less secure and is not recommended for shared PCs.
+## token/certificate/private-key labels
 
-## Defaults matching the supplied signed sample
+Normally blank rehne do:
+
+```json
+"token_label_contains": "",
+"certificate_label_contains": "",
+"private_key_label_contains": ""
+```
+
+Program certificate aur RSA private key select karega, preferably matching PKCS#11 `CKA_ID` pair se.
+
+---
+
+# Signature settings
+
+Provided signed sample ko inspect karne par RSA PKCS#1 v1.5 signature me SHA-1 DigestInfo identify hua, therefore current default:
 
 ```json
 "signature": {
@@ -95,16 +285,142 @@ By default the app asks for the PIN interactively on startup. It can also read a
 }
 ```
 
-`output_style=preserve` keeps the original top-level JSON text and inserts `digSign` before the final closing brace, minimizing unintended data changes.
+Available signing algorithms:
 
-## Troubleshooting
+```text
+SHA1_RSA_PKCS
+SHA256_RSA_PKCS
+SHA384_RSA_PKCS
+SHA512_RSA_PKCS
+```
 
-- **Could not load PKCS#11 library**: wrong DLL path or 32/64-bit mismatch.
-- **No token detected**: middleware missing, token unplugged, or wrong DLL.
-- **Token login failed**: incorrect PIN; repeated wrong attempts can lock many DSC tokens.
-- **No RSA private key/certificate**: label filters are too strict or wrong token slot selected.
-- **Signed file rejected by ICEGATE/vendor**: most likely exact payload canonicalization differs. Obtain a matched same-file before/after example from the existing signer and adjust `payload_mode`.
+Current sample matching default:
 
-## Security
+```text
+SHA1_RSA_PKCS
+```
 
-The private key is never exported from the DSC token. The application asks the token middleware to perform the signature operation. Do not copy private-key material into this project.
+---
+
+# Important — exact ICEGATE/vendor compatibility
+
+Signed sample se ye identify kiya ja sakta hai ki signature RSA PKCS#1 v1.5 + SHA-1 use kar raha hai.
+
+Lekin signed JSON alone se 100% prove nahi hota ki original vendor software JSON ke **exact kaunse bytes** sign karta hai.
+
+JSON signature byte-sensitive hoti hai.
+
+Supported `payload_mode`:
+
+```text
+raw
+raw_trimmed
+compact_json
+sorted_compact_json
+```
+
+Default:
+
+```json
+"payload_mode": "raw"
+```
+
+Final production validation ke liye best test hai:
+
+1. Ek exact unsigned JSON lo
+2. Usko existing official/vendor signer se sign karo
+3. Same exact unsigned JSON ko is bot se sign karo
+4. Receiving system/ICEGATE validation compare karo
+
+Agar signature rejection aaye, payload canonicalization ko vendor format ke according adjust karna hoga.
+
+---
+
+# Folder structure
+
+```text
+DSC-JSON-Auto-Signer\
+│
+├── input\
+├── output\
+├── archive\
+├── error\
+├── logs\
+├── tools\
+│
+├── config.json
+├── main.py
+├── json_signing.py
+├── pkcs11_signer.py
+├── credential_store.py
+├── setup_wizard.py
+│
+├── setup_once.bat
+├── install.bat
+├── token_info.bat
+├── run_signer.bat
+├── sign_once.bat
+├── clear_saved_pin.bat
+└── requirements.txt
+```
+
+---
+
+# Common errors
+
+## Administrator account required
+
+HyperPKI setup ko **Right Click → Run as administrator** se install karo.
+
+## Could not load PKCS#11 library
+
+Wrong DLL selected hai ya DLL/driver architecture mismatch hai.
+
+`setup_once.bat` dobara run karke correct DLL choose karo.
+
+## No DSC/USB token detected
+
+Check:
+
+- token connected hai
+- HyperPKI middleware installed hai
+- correct PKCS#11 DLL configured hai
+
+## Token login failed
+
+Saved PIN wrong ho sakta hai.
+
+Run:
+
+```text
+clear_saved_pin.bat
+```
+
+then:
+
+```text
+setup_once.bat
+```
+
+and correct PIN save karo.
+
+**Repeated wrong PIN attempts mat karo — token lock ho sakta hai.**
+
+## Signed JSON receiving system reject kar raha hai
+
+Most likely payload byte/canonicalization mismatch hai. Existing signer ka matched same-file before/after sample required hoga.
+
+---
+
+# Daily use
+
+First-time setup ke baad daily process sirf:
+
+```text
+1. DSC token plug in karo
+2. run_signer.bat start karo
+3. JSON files input folder me paste karo
+4. Signed JSON output folder se le lo
+```
+
+PIN dobara enter karne ki zarurat nahi hogi jab tak saved credential remove/change nahi hota.
